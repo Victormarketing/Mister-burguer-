@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Admin — Mister Burguer</title>
+<style>
+:root{--bg:#0b0b0b;--cd:#151515;--ln:#2a2a2a;--or:#ff7a00;--mu:#a8a8a8}
+*{box-sizing:border-box;margin:0}body{background:var(--bg);color:#fff;font:15px/1.4 system-ui,sans-serif;padding:14px}
+h1{font:900 22px Impact,sans-serif;color:var(--or)}nav{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
+button{font:inherit;font-weight:700;border:0;border-radius:10px;padding:10px 14px;background:var(--or);color:#000;cursor:pointer;min-height:42px}button.s{background:transparent;color:#fff;border:1px solid var(--ln)}button.on{outline:2px solid #fff}
+input,select{background:#0e0e0e;color:#fff;border:1px solid var(--ln);border-radius:10px;padding:10px;font:inherit;width:100%}
+.k{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(250px,1fr);gap:10px;overflow-x:auto;align-items:start}
+.col h3{font-size:13px;color:var(--mu);margin:6px 0}.o{background:var(--cd);border:1px solid var(--ln);border-radius:14px;padding:12px;margin-bottom:8px}.o.n{border-color:var(--or)}
+.m{color:var(--mu);font-size:13px}.row{display:grid;grid-template-columns:1fr 90px 60px 70px;gap:6px;align-items:center;margin:6px 0}
+.l{max-width:360px;margin:60px auto}.err{color:#ff9d9d;margin:8px 0}label{display:block;margin:8px 0 3px;color:var(--mu);font-size:13px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #fff;outline-offset:2px}
+</style></head><body><div id="app"></div>
+<script>
+const $=q=>document.querySelector(q),R=n=>'R$ '+Number(n).toFixed(2).replace('.',','),E=s=>String(s??'').replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+const ST=['NOVO','ACEITO','PREPARANDO','PRONTO','SAIU PARA ENTREGA','ENTREGUE','CANCELADO'],TY={delivery:'Delivery',pickup:'Retirada',table:'Mesa'};
+let tab='pedidos',orders=[],seen=null,T;
+const api=async(u,m='GET',b)=>{const r=await fetch('/api/admin/'+u,{method:m,headers:{'Content-Type':'application/json'},body:b&&JSON.stringify(b)});if(r.status==401){login();throw 0}const j=await r.json();if(!r.ok)throw j.error;return j};
+const ok=r=>r.ok?start():r.json().then(j=>screen(j.error));
+function screen(e='',setup=false){clearInterval(T);$('#app').innerHTML=`<div class="l"><h1>MISTER BURGUER · Admin</h1><p class="m" style="margin-top:10px">${setup?'Primeiro acesso: crie o e-mail e a senha do dono da loja.':'Entre com seu e-mail e senha.'}</p><label for="em">E-mail</label><input id="em" type="email" autocomplete="username"><label for="pw">Senha${setup?' (mínimo 8 caracteres)':''}</label><input id="pw" type="password" autocomplete="${setup?'new-password':'current-password'}" onkeydown="if(event.key=='Enter')enter(${setup})"><div class="err" role="alert">${E(e)}</div><button onclick="enter(${setup})" style="width:100%">${setup?'Criar acesso':'Entrar'}</button></div>`}
+const login=e=>screen(e),
+ enter=async setup=>{const r=await fetch('/api/admin/'+(setup?'setup':'login'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:$('#em').value,password:$('#pw').value})});ok(r)};
+function start(){shell();show();T=setInterval(()=>tab=='pedidos'&&poll(),5000)}
+function shell(){$('#app').innerHTML=`<h1>MISTER BURGUER</h1><nav>${[['pedidos','Pedidos'],['cardapio','Cardápio'],['config','Configurações']].map(([k,l])=>`<button class="${tab==k?'':'s'}" onclick="tab='${k}';shell();show()">${l}</button>`).join('')}</nav><div id="v"></div>`}
+const show=()=>({pedidos:poll,cardapio:cardapio,config:config})[tab]();
+function beep(){try{const c=new AudioContext(),o=c.createOscillator();o.connect(c.destination);o.frequency.value=880;o.start();o.stop(c.currentTime+.4)}catch{}}
+async function poll(){orders=await api('orders');const ids=orders.map(o=>o.id);if(seen&&ids.some(i=>!seen.includes(i)&&orders.find(o=>o.id==i).status=='NOVO')){beep();document.title='🔔 Novo pedido!'}else if(!orders.some(o=>o.status=='NOVO'))document.title='Admin — Mister Burguer';seen=ids;if(tab=='pedidos')board()}
+function board(){$('#v').innerHTML=`<div class="k">${ST.map(s=>`<div class="col"><h3>${s} (${orders.filter(o=>o.status==s).length})</h3>${orders.filter(o=>o.status==s).map(card).join('')}</div>`).join('')}</div>`}
+function card(o){return`<div class="o ${o.status=='NOVO'?'n':''}"><b>#${String(o.id).padStart(4,'0')} · ${E(o.name)}</b> <span class="m">${new Date(o.created).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>
+<div class="m">${TY[o.type]}${o.table_no?' '+E(o.table_no):''} · ${o.pay} · <b style="color:#fff">${R(o.total)}</b></div>
+<details><summary class="m">Detalhes</summary>${o.items.map(i=>`<div>${i.qty}x ${E(i.name)}${i.addons.map(a=>`<div class="m">+ ${E(a.name)}</div>`).join('')}${i.note?`<div class="m">Obs: ${E(i.note)}</div>`:''}</div>`).join('')}
+<div class="m">WhatsApp: <a style="color:var(--or)" target="_blank" rel="noopener" href="https://wa.me/55${E(o.phone)}">${E(o.phone)}</a></div>${o.addr?`<div class="m">${E(o.addr)}</div>`:''}${o.change_for?`<div class="m">Troco para ${R(o.change_for)}</div>`:''}${o.notes?`<div class="m">Obs: ${E(o.notes)}</div>`:''}<div class="m">Subtotal ${R(o.subtotal)} · Taxa ${R(o.fee)}</div></details>
+<select aria-label="Alterar status" onchange="setSt(${o.id},this.value)" style="margin-top:8px">${ST.map(s=>`<option ${s==o.status?'selected':''}>${s}</option>`).join('')}</select></div>`}
+async function setSt(id,s){if(s=='CANCELADO'&&!confirm('Cancelar este pedido?'))return poll();await api('orders/'+id,'PATCH',{status:s});poll()}
+async function cardapio(){const P=await api('products');$('#v').innerHTML=P.map(p=>`<div class="row" data-id="${p.id}"><div><input value="${E(p.name)}" aria-label="Nome"><span class="m">${E(p.cat_name)}</span></div><input type="number" step="0.01" min="0" value="${p.price}" aria-label="Preço"><label style="margin:0"><input type="checkbox" style="width:auto" ${p.active?'checked':''}> ativo</label><button onclick="saveP(this.parentNode,${p.id},'${E(p.descr).replace(/'/g,'&#39;')}')">Salvar</button></div>`).join('')}
+async function saveP(r,id,d){const i=r.querySelectorAll('input');try{await api('products/'+id,'PUT',{name:i[0].value,price:+i[1].value,active:i[2].checked,descr:d});r.querySelector('button').textContent='Salvo ✓'}catch(e){alert(e||'Erro ao salvar')}}
+async function config(){const s=await api('settings'),F=[['store_name','Nome'],['slogan','Slogan'],['whatsapp','WhatsApp (55 + DDD + número)'],['pix','Chave PIX'],['address','Endereço'],['instagram','Instagram'],['open','Abre (HH:MM)'],['close','Fecha (HH:MM)'],['delivery_fee','Taxa de entrega padrão (R$)'],['min_order','Pedido mínimo (R$)'],['eta','Previsão de entrega']];
+ $('#v').innerHTML=`<div style="max-width:420px">${F.map(([k,l])=>`<label for="f_${k}">${l}</label><input id="f_${k}" value="${E(s[k])}">`).join('')}<label for="f_mode">Loja</label><select id="f_mode">${[['auto','Automático (pelo horário)'],['open','Abrir agora'],['closed','Fechar agora']].map(([v,t])=>`<option value="${v}" ${s.mode==v?'selected':''}>${t}</option>`).join('')}</select><button onclick="saveC()" style="margin-top:14px;width:100%">Salvar configurações</button><p class="m" id="ok"></p></div>`}
+async function saveC(){const b={};document.querySelectorAll('[id^=f_]').forEach(i=>b[i.id.slice(2)]=i.value);try{await api('settings','PUT',b);$('#ok').textContent='Salvo ✓'}catch(e){$('#ok').textContent=e||'Erro'}}
+fetch('/api/admin/status').then(r=>r.json()).then(s=>s.setup?screen('',true):api('settings').then(start).catch(()=>screen()));
+</script></body></html>
